@@ -89,16 +89,12 @@ export function LogsTable() {
         .not("transaction_hash", "is", null);
 
       if (duplicateHashes) {
-        interface TransactionHashEntry {
-          transaction_hash: string;
-        }
-
-        const hashCounts = duplicateHashes.reduce(
-          (acc: Record<string, number>, curr: TransactionHashEntry) => {
+        const hashCounts = duplicateHashes.reduce<Record<string, number>>(
+          (acc: Record<string, number>, curr: { transaction_hash: string }) => {
             acc[curr.transaction_hash] = (acc[curr.transaction_hash] || 0) + 1;
             return acc;
           },
-          {} as Record<string, number>
+          {}
         );
 
         const duplicates = Object.keys(hashCounts).filter(
@@ -122,7 +118,7 @@ export function LogsTable() {
   };
 
   const fetchFilterOptions = async () => {
-    const fetchUniqueValues = async (column: string): Promise<string[]> => {
+    const fetchUniqueValues = async (column: keyof Log): Promise<string[]> => {
       const { data, error } = await supabase
         .from("logs")
         .select(column)
@@ -133,13 +129,16 @@ export function LogsTable() {
         return [];
       }
 
-      // Extract unique values
       const uniqueValues = Array.from(
         new Set(
-          data?.map((item: Record<string, unknown>) => item[column] as string)
+          data
+            ?.map((item: Record<string, unknown>) => item[column])
+            .filter(
+              (value: unknown): value is string => typeof value === "string"
+            )
         )
-      ) as string[];
-      return uniqueValues;
+      );
+      return uniqueValues as string[];
     };
 
     const networks = await fetchUniqueValues("network");
