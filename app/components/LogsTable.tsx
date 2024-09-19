@@ -81,30 +81,7 @@ export function LogsTable() {
     if (filters.created_at)
       query = query.gte("created_at", filters.created_at.toISOString());
 
-    if (filters.showDuplicates) {
-      const { data: duplicateHashes } = await supabase
-        .from("logs")
-        .select("transaction_hash")
-        .eq("transaction_hash", "transaction_hash")
-        .not("transaction_hash", "is", null);
-
-      if (duplicateHashes) {
-        const hashCounts = duplicateHashes.reduce<Record<string, number>>(
-          (acc: Record<string, number>, curr: { transaction_hash: string }) => {
-            acc[curr.transaction_hash] = (acc[curr.transaction_hash] || 0) + 1;
-            return acc;
-          },
-          {}
-        );
-
-        const duplicates = Object.keys(hashCounts).filter(
-          (hash) => hashCounts[hash] > 1
-        );
-
-        query = query.in("transaction_hash", duplicates);
-      }
-    }
-
+    // Remove the server-side duplicate filtering
     // Add sorting to the query
     query = query.order("created_at", { ascending: false });
 
@@ -115,6 +92,27 @@ export function LogsTable() {
     } else {
       setLogs(data || []);
     }
+  };
+
+  // Add a new function to filter duplicates on the client side
+  const getFilteredLogs = () => {
+    if (!filters.showDuplicates) {
+      return logs;
+    }
+
+    const hashCounts = logs.reduce<Record<string, number>>((acc, log) => {
+      acc[log.transaction_hash] = (acc[log.transaction_hash] || 0) + 1;
+      return acc;
+    }, {});
+
+    const duplicateLogs = logs.filter(
+      (log) => hashCounts[log.transaction_hash] > 1
+    );
+
+    // Sort the duplicate logs by transaction hash
+    return duplicateLogs.sort((a, b) =>
+      a.transaction_hash.localeCompare(b.transaction_hash)
+    );
   };
 
   const fetchFilterOptions = async () => {
@@ -259,7 +257,7 @@ export function LogsTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {logs.map((log, index) => (
+          {getFilteredLogs().map((log, index) => (
             <TableRow key={index}>
               <TableCell>
                 {new Date(log.created_at).toLocaleString("default", {
